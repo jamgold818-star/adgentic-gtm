@@ -387,7 +387,7 @@ function pct(str) {
 function render() {
   const data = filtered();
   const totalList = data.reduce((s, d) => s + num(d['List Size']), 0);
-  const totalQL = data.reduce((s, d) => s + num(d['Qualified Leads']), 0);
+  const totalQL = data.reduce((s, d) => s + num(d['Qualified Connects']), 0);
   const totalBooked = data.reduce((s, d) => s + num(d['Booked']), 0);
   const avgBooking = totalList > 0 ? (totalBooked / totalList * 100) : 0;
   const activeCampaigns = data.filter(d => !d['End Date']).length;
@@ -405,7 +405,7 @@ function render() {
         <div class="kpi-sub">contacts loaded</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Qualified Leads</div>
+        <div class="kpi-label">Qualified Connects</div>
         <div class="kpi-value">${totalQL}</div>
         <div class="kpi-sub">${totalList > 0 ? (totalQL/totalList*100).toFixed(2) : 0}% qualification rate</div>
       </div>
@@ -476,7 +476,7 @@ function render() {
                 <td>${d['Start Date'] || ''}</td>
                 <td style="color:${statusColor}">${status}</td>
                 <td>${num(d['List Size']).toLocaleString()}</td>
-                <td>${num(d['Qualified Leads'])}</td>
+                <td>${num(d['Qualified Connects'])}</td>
                 <td><strong>${num(d['Booked'])}</strong></td>
                 <td>
                   <div class="bar-cell">
@@ -543,7 +543,7 @@ function renderCharts(data) {
       labels: data.map(d => d['Campaign Name']),
       datasets: [
         { label: 'List Size', data: data.map(d => num(d['List Size'])), backgroundColor: '#6366f1', borderRadius: 4, maxBarThickness: 40 },
-        { label: 'Qualified', data: data.map(d => num(d['Qualified Leads'])), backgroundColor: '#34d399', borderRadius: 4, maxBarThickness: 40 },
+        { label: 'Qualified', data: data.map(d => num(d['Qualified Connects'])), backgroundColor: '#34d399', borderRadius: 4, maxBarThickness: 40 },
         { label: 'Booked', data: data.map(d => num(d['Booked'])), backgroundColor: '#fbbf24', borderRadius: 4, maxBarThickness: 40 }
       ]
     },
@@ -562,7 +562,7 @@ function renderCharts(data) {
     const rows = data.filter(d => d['ICP'] === icp);
     const ls = rows.reduce((s, d) => s + num(d['List Size']), 0);
     const booked = rows.reduce((s, d) => s + num(d['Booked']), 0);
-    const ql = rows.reduce((s, d) => s + num(d['Qualified Leads']), 0);
+    const ql = rows.reduce((s, d) => s + num(d['Qualified Connects']), 0);
     return { icp, ls, booked, ql, rate: ls > 0 ? booked / ls * 100 : 0 };
   });
 
@@ -571,7 +571,7 @@ function renderCharts(data) {
     data: {
       labels: icpData.map(d => d.icp),
       datasets: [
-        { label: 'Qualified Leads', data: icpData.map(d => d.ql), backgroundColor: '#34d399', borderRadius: 6, maxBarThickness: 60 },
+        { label: 'Qualified Connects', data: icpData.map(d => d.ql), backgroundColor: '#34d399', borderRadius: 6, maxBarThickness: 60 },
         { label: 'Booked', data: icpData.map(d => d.booked), backgroundColor: '#fbbf24', borderRadius: 6, maxBarThickness: 60 }
       ]
     },
@@ -584,7 +584,7 @@ function renderCharts(data) {
     const rows = data.filter(d => d['GTM Motion'] === m);
     const ls = rows.reduce((s, d) => s + num(d['List Size']), 0);
     const booked = rows.reduce((s, d) => s + num(d['Booked']), 0);
-    const ql = rows.reduce((s, d) => s + num(d['Qualified Leads']), 0);
+    const ql = rows.reduce((s, d) => s + num(d['Qualified Connects']), 0);
     return { m, ls, booked, ql, rate: ls > 0 ? booked / ls * 100 : 0 };
   });
 
