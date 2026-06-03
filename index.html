@@ -283,7 +283,7 @@
 <div class="header">
   <h1><span>Adgentic</span> GTM Dashboard</h1>
   <div class="header-meta">
-    <span><span class="status-dot"></span>Live from Google Sheets</span>
+    <span><span class="status-dot"></span>Live from Apollo.io</span>
     <span id="last-updated"></span>
     <button class="refresh-btn" onclick="loadData()">Refresh</button>
   </div>
@@ -296,7 +296,7 @@
 </div>
 
 <div class="footer">
-  Adgentic Sales Dashboard &middot; Data synced from Google Sheets
+  Adgentic Sales Dashboard &middot; Data synced from Apollo.io
 </div>
 
 <script>
@@ -319,8 +319,7 @@ async function loadData() {
     document.getElementById('content').innerHTML =
       `<div class="loading" style="flex-direction:column;gap:12px;">
         <span style="font-size:16px;font-weight:600;">Unable to load data</span>
-        <span>Make sure the Google Sheet is published to the web.<br>
-        File → Share → Publish to web → Entire Document → CSV</span>
+        <span>Unable to connect to the data source. Please try again later.</span>
       </div>`;
   }
 }
