@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adgentic — Campaign Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-hover: #222632;
+    --border: #2a2e3a;
+    --text: #e4e4e7;
+    --text-muted: #8b8d97;
+    --accent: #6366f1;
+    --accent-light: #818cf8;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .header h1 span { color: var(--accent-light); }
+
+  .header-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .refresh-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+
+  .refresh-btn:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+
+  .filters {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 7px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+
+  .filter-btn:hover { background: var(--surface-hover); color: var(--text); }
+
+  .filter-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: border-color 0.2s;
+  }
+
+  .kpi-card:hover { border-color: var(--accent); }
+
+  .kpi-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .kpi-value {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -1px;
+  }
+
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .chart-card h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text-muted);
+  }
+
+  .chart-container {
+    position: relative;
+    height: 280px;
+  }
+
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+
+  .table-card h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 20px 24px 16px;
+  }
+
+  .table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    text-align: left;
+    padding: 10px 16px;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  tr:hover td { background: var(--surface-hover); }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .tag-salesco { background: rgba(99,102,241,0.15); color: var(--accent-light); }
+  .tag-saleshive { background: rgba(52,211,153,0.15); color: var(--green); }
+  .tag-internal { background: rgba(251,191,36,0.15); color: var(--amber); }
+
+  .bar-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mini-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--accent);
+    transition: width 0.5s ease;
+  }
+
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 400px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  .loading::after {
+    content: '';
+    width: 20px; height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-left: 10px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 20px 0;
+  }
+
+  @media (max-width: 600px) {
+    body { padding: 16px; }
+    .charts-grid { grid-template-columns: 1fr; }
+    .kpi-value { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>Adgentic</span> Campaign Dashboard</h1>
+  <div class="header-meta">
+    <span><span class="status-dot"></span>Live from Google Sheets</span>
+    <span id="last-updated"></span>
+    <button class="refresh-btn" onclick="loadData()">Refresh</button>
+  </div>
+</div>
+
+<div class="filters" id="filters"></div>
+
+<div id="content">
+  <div class="loading">Loading campaign data</div>
+</div>
+
+<div class="footer">
+  Adgentic Sales Dashboard &middot; Data synced from Google Sheets
+</div>
+
+<script>
+const SHEET_ID = '14NGi2PDaSkIJrnqNv40rV-nQtbGfJu8LNWp7be0N4r4';
+const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`;
+
+let allData = [];
+let activeFilter = 'All';
+let charts = {};
+
+async function loadData() {
+  try {
+    const res = await fetch(CSV_URL);
+    const csv = await res.text();
+    allData = parseCSV(csv);
+    document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    buildFilters();
+    render();
+  } catch (e) {
+    document.getElementById('content').innerHTML =
+      `<div class="loading" style="flex-direction:column;gap:12px;">
+        <span style="font-size:16px;font-weight:600;">Unable to load data</span>
+        <span>Make sure the Google Sheet is published to the web.<br>
+        File → Share → Publish to web → Entire Document → CSV</span>
+      </div>`;
+  }
+}
+
+function parseCSV(csv) {
+  const lines = csv.trim().split('\n');
+  const headers = parseLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const vals = parseLine(line);
+    const obj = {};
+    headers.forEach((h, i) => obj[h.trim()] = (vals[i] || '').trim());
+    return obj;
+  });
+}
+
+function parseLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+function buildFilters() {
+  const motions = ['All', ...new Set(allData.map(d => d['GTM Motion']))];
+  const container = document.getElementById('filters');
+  container.innerHTML = motions.map(m =>
+    `<button class="filter-btn ${m === activeFilter ? 'active' : ''}" onclick="setFilter('${m}')">${m}</button>`
+  ).join('');
+}
+
+function setFilter(f) {
+  activeFilter = f;
+  buildFilters();
+  render();
+}
+
+function filtered() {
+  if (activeFilter === 'All') return allData;
+  return allData.filter(d => d['GTM Motion'] === activeFilter);
+}
+
+function num(str) {
+  return parseInt(String(str).replace(/[^0-9]/g, ''), 10) || 0;
+}
+
+function pct(str) {
+  const n = parseFloat(String(str).replace('%', ''));
+  return isNaN(n) ? 0 : n;
+}
+
+function render() {
+  const data = filtered();
+  const totalList = data.reduce((s, d) => s + num(d['List Size']), 0);
+  const totalQL = data.reduce((s, d) => s + num(d['Qualified Leads']), 0);
+  const totalBooked = data.reduce((s, d) => s + num(d['Booked']), 0);
+  const avgBooking = totalList > 0 ? (totalBooked / totalList * 100) : 0;
+  const activeCampaigns = data.filter(d => !d['End Date']).length;
+
+  document.getElementById('content').innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Campaigns</div>
+        <div class="kpi-value">${data.length}</div>
+        <div class="kpi-sub">${activeCampaigns} active</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total List Size</div>
+        <div class="kpi-value">${totalList.toLocaleString()}</div>
+        <div class="kpi-sub">contacts loaded</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Qualified Leads</div>
+        <div class="kpi-value">${totalQL}</div>
+        <div class="kpi-sub">${totalList > 0 ? (totalQL/totalList*100).toFixed(2) : 0}% qualification rate</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Meetings Booked</div>
+        <div class="kpi-value">${totalBooked}</div>
+        <div class="kpi-sub">${avgBooking.toFixed(2)}% booking rate</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Lead → Meeting</div>
+        <div class="kpi-value">${totalQL > 0 ? (totalBooked/totalQL*100).toFixed(0) : 0}%</div>
+        <div class="kpi-sub">conversion rate</div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Booking Rate by Campaign</h3>
+        <div class="chart-container"><canvas id="chart-booking"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Funnel by Campaign</h3>
+        <div class="chart-container"><canvas id="chart-funnel"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Performance by ICP Vertical</h3>
+        <div class="chart-container"><canvas id="chart-icp"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Performance by GTM Motion</h3>
+        <div class="chart-container"><canvas id="chart-motion"></canvas></div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <h3>All Campaigns</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>GTM Motion</th>
+              <th>Campaign</th>
+              <th>ICP</th>
+              <th>Channel(s)</th>
+              <th>Start</th>
+              <th>Status</th>
+              <th>List Size</th>
+              <th>Qualified</th>
+              <th>Booked</th>
+              <th>Booking Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.map(d => {
+              const motion = d['GTM Motion'] || '';
+              const tagClass = motion.includes('Sales.co') ? 'tag-salesco' :
+                               motion.includes('SalesHive') ? 'tag-saleshive' : 'tag-internal';
+              const bookingRate = pct(d['Booking Rate']);
+              const maxRate = Math.max(...allData.map(x => pct(x['Booking Rate'])), 0.01);
+              const barW = (bookingRate / maxRate * 100).toFixed(0);
+              const status = d['End Date'] ? 'Ended' : 'Active';
+              const statusColor = d['End Date'] ? 'var(--text-muted)' : 'var(--green)';
+              return `<tr>
+                <td><span class="tag ${tagClass}">${motion}</span></td>
+                <td>${d['Campaign Name'] || ''}</td>
+                <td>${d['ICP'] || ''}</td>
+                <td>${d['Channel(s)'] || ''}</td>
+                <td>${d['Start Date'] || ''}</td>
+                <td style="color:${statusColor}">${status}</td>
+                <td>${num(d['List Size']).toLocaleString()}</td>
+                <td>${num(d['Qualified Leads'])}</td>
+                <td><strong>${num(d['Booked'])}</strong></td>
+                <td>
+                  <div class="bar-cell">
+                    <div class="mini-bar" style="width:${barW}px"></div>
+                    ${bookingRate.toFixed(2)}%
+                  </div>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  renderCharts(data);
+}
+
+function renderCharts(data) {
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+
+  const colors = ['#6366f1','#34d399','#fbbf24','#f87171','#a78bfa','#38bdf8','#fb923c'];
+  const defaults = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#8b8d97', font: { size: 11 } } }
+    },
+    scales: {
+      x: { ticks: { color: '#8b8d97', font: { size: 11 } }, grid: { color: '#2a2e3a' } },
+      y: { ticks: { color: '#8b8d97', font: { size: 11 } }, grid: { color: '#2a2e3a' } }
+    }
+  };
+
+  // Booking rate by campaign
+  charts.booking = new Chart(document.getElementById('chart-booking'), {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d['Campaign Name']),
+      datasets: [{
+        label: 'Booking Rate %',
+        data: data.map(d => pct(d['Booking Rate'])),
+        backgroundColor: data.map((_, i) => colors[i % colors.length]),
+        borderRadius: 6,
+        maxBarThickness: 50
+      }]
+    },
+    options: {
+      ...defaults,
+      plugins: { ...defaults.plugins, legend: { display: false } },
+      scales: {
+        ...defaults.scales,
+        x: { ...defaults.scales.x, ticks: { ...defaults.scales.x.ticks, maxRotation: 45 } },
+        y: { ...defaults.scales.y, title: { display: true, text: 'Booking Rate %', color: '#8b8d97' } }
+      }
+    }
+  });
+
+  // Funnel
+  charts.funnel = new Chart(document.getElementById('chart-funnel'), {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d['Campaign Name']),
+      datasets: [
+        { label: 'List Size', data: data.map(d => num(d['List Size'])), backgroundColor: '#6366f1', borderRadius: 4, maxBarThickness: 40 },
+        { label: 'Qualified', data: data.map(d => num(d['Qualified Leads'])), backgroundColor: '#34d399', borderRadius: 4, maxBarThickness: 40 },
+        { label: 'Booked', data: data.map(d => num(d['Booked'])), backgroundColor: '#fbbf24', borderRadius: 4, maxBarThickness: 40 }
+      ]
+    },
+    options: {
+      ...defaults,
+      scales: {
+        ...defaults.scales,
+        x: { ...defaults.scales.x, ticks: { ...defaults.scales.x.ticks, maxRotation: 45 } }
+      }
+    }
+  });
+
+  // By ICP
+  const icps = [...new Set(data.map(d => d['ICP']))];
+  const icpData = icps.map(icp => {
+    const rows = data.filter(d => d['ICP'] === icp);
+    const ls = rows.reduce((s, d) => s + num(d['List Size']), 0);
+    const booked = rows.reduce((s, d) => s + num(d['Booked']), 0);
+    const ql = rows.reduce((s, d) => s + num(d['Qualified Leads']), 0);
+    return { icp, ls, booked, ql, rate: ls > 0 ? booked / ls * 100 : 0 };
+  });
+
+  charts.icp = new Chart(document.getElementById('chart-icp'), {
+    type: 'bar',
+    data: {
+      labels: icpData.map(d => d.icp),
+      datasets: [
+        { label: 'Qualified Leads', data: icpData.map(d => d.ql), backgroundColor: '#34d399', borderRadius: 6, maxBarThickness: 60 },
+        { label: 'Booked', data: icpData.map(d => d.booked), backgroundColor: '#fbbf24', borderRadius: 6, maxBarThickness: 60 }
+      ]
+    },
+    options: defaults
+  });
+
+  // By GTM Motion
+  const motions = [...new Set(data.map(d => d['GTM Motion']))];
+  const motionData = motions.map(m => {
+    const rows = data.filter(d => d['GTM Motion'] === m);
+    const ls = rows.reduce((s, d) => s + num(d['List Size']), 0);
+    const booked = rows.reduce((s, d) => s + num(d['Booked']), 0);
+    const ql = rows.reduce((s, d) => s + num(d['Qualified Leads']), 0);
+    return { m, ls, booked, ql, rate: ls > 0 ? booked / ls * 100 : 0 };
+  });
+
+  charts.motion = new Chart(document.getElementById('chart-motion'), {
+    type: 'bar',
+    data: {
+      labels: motionData.map(d => d.m),
+      datasets: [
+        { label: 'List Size', data: motionData.map(d => d.ls), backgroundColor: '#6366f1', borderRadius: 6, maxBarThickness: 60 },
+        { label: 'Qualified', data: motionData.map(d => d.ql), backgroundColor: '#34d399', borderRadius: 6, maxBarThickness: 60 },
+        { label: 'Booked', data: motionData.map(d => d.booked), backgroundColor: '#fbbf24', borderRadius: 6, maxBarThickness: 60 }
+      ]
+    },
+    options: defaults
+  });
+}
+
+loadData();
+</script>
+</body>
+</html>
