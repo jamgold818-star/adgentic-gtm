@@ -513,13 +513,9 @@ function render() {
     </div>
 
     <div class="charts-grid">
-      <div class="chart-card">
-        <h3>Booking Rate by Campaign</h3>
-        <div class="chart-container" style="height:${Math.max(280, campaigns.length * 36)}px"><canvas id="chart-booking"></canvas></div>
-      </div>
-      <div class="chart-card">
+      <div class="chart-card" style="grid-column: 1 / -1;">
         <h3>Pipeline Funnel</h3>
-        <div class="chart-container"><canvas id="chart-funnel"></canvas></div>
+        <div class="chart-container" style="height:120px"><canvas id="chart-funnel"></canvas></div>
       </div>
       <div class="chart-card">
         <h3>Booking Rate by ICP Vertical</h3>
@@ -752,73 +748,54 @@ function renderCharts(campaigns, meetings) {
     }
   };
 
-  // Booking rate by campaign — horizontal, sorted best to worst
-  const sortedCampaigns = [...campaigns].sort((a, b) => pct(b['Booking Rate']) - pct(a['Booking Rate']));
-  charts.booking = new Chart(document.getElementById('chart-booking'), {
-    type: 'bar',
-    data: {
-      labels: sortedCampaigns.map(d => d['Campaign Name']),
-      datasets: [{
-        label: 'Booking Rate %',
-        data: sortedCampaigns.map(d => pct(d['Booking Rate'])),
-        backgroundColor: sortedCampaigns.map(d => {
-          const m = d['GTM Motion'] || '';
-          if (m.includes('Sales.co')) return '#818cf8';
-          if (m.includes('SalesHive')) return '#34d399';
-          if (m.includes('Warm')) return '#fb923c';
-          return '#fbbf24';
-        }),
-        borderRadius: 4,
-        barThickness: 22
-      }]
-    },
-    options: {
-      ...defaults,
-      indexAxis: 'y',
-      plugins: { ...defaults.plugins, legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ctx.parsed.x.toFixed(2) + '%' } }
-      },
-      scales: {
-        x: { ...defaults.scales.x, title: { display: true, text: 'Booking Rate %', color: '#8b8d97' } },
-        y: { ...defaults.scales.y, ticks: { color: '#e4e4e7', font: { size: 12 } }, grid: { display: false } }
-      }
-    }
-  });
-
-  // Pipeline funnel — horizontal stacked showing the aggregate conversion at each stage
+  // Pipeline funnel — full-width horizontal bar with value labels
   const totalList = campaigns.reduce((s, d) => s + num(d['List Size']), 0);
   const totalQC = campaigns.reduce((s, d) => s + num(d['Qualified Connects']), 0);
   const totalBooked = campaigns.reduce((s, d) => s + num(d['Booked']), 0);
   const completedDemos = meetings.filter(d => d['Completed'] === 'Yes').length;
   const closedWon = meetings.filter(d => d['Demo Outcome'] === 'Closed Won').length;
 
+  const funnelStages = [
+    { label: 'Contacted', value: totalList },
+    { label: 'Qualified', value: totalQC },
+    { label: 'Booked', value: totalBooked },
+    { label: 'Demo Completed', value: completedDemos },
+    { label: 'Closed Won', value: closedWon }
+  ];
+
   charts.funnel = new Chart(document.getElementById('chart-funnel'), {
     type: 'bar',
     data: {
-      labels: ['Contacted', 'Qualified', 'Booked', 'Completed Demo', 'Closed Won'],
-      datasets: [{
-        data: [totalList, totalQC, totalBooked, completedDemos, closedWon],
-        backgroundColor: ['#6366f1', '#818cf8', '#34d399', '#fbbf24', '#22d3ee'],
-        borderRadius: 4,
-        barThickness: 32
-      }]
+      labels: [''],
+      datasets: funnelStages.map((s, i) => ({
+        label: s.label + ': ' + s.value.toLocaleString(),
+        data: [s.value],
+        backgroundColor: ['#6366f1','#818cf8','#34d399','#fbbf24','#22d3ee'][i],
+        borderRadius: 6,
+        barPercentage: 0.7
+      }))
     },
     options: {
       ...defaults,
       indexAxis: 'y',
-      plugins: { ...defaults.plugins, legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ctx.parsed.x.toLocaleString() } }
+      plugins: {
+        legend: { position: 'top', labels: { color: '#e4e4e7', font: { size: 12 }, usePointStyle: true, pointStyle: 'rectRounded', padding: 20 } },
+        tooltip: { callbacks: { label: ctx => {
+          const idx = ctx.datasetIndex;
+          const val = funnelStages[idx].value;
+          const pctStr = idx > 0 ? ' (' + (funnelStages[0].value > 0 ? (val / funnelStages[0].value * 100).toFixed(2) : 0) + '% of contacted)' : '';
+          return funnelStages[idx].label + ': ' + val.toLocaleString() + pctStr;
+        }}}
       },
       scales: {
-        x: { ...defaults.scales.x, type: 'logarithmic', title: { display: true, text: 'Count (log scale)', color: '#8b8d97' },
-          ticks: { ...defaults.scales.x.ticks, callback: v => v.toLocaleString() } },
-        y: { ...defaults.scales.y, ticks: { color: '#e4e4e7', font: { size: 12, weight: 'bold' } }, grid: { display: false } }
+        x: { display: false },
+        y: { display: false }
       }
     }
   });
 
-  // Booking rate by ICP — horizontal bars
-  const icps = [...new Set(campaigns.map(d => d['ICP']))];
+  // Booking rate by ICP — vertical bars with dual metrics
+  const icps = [...new Set(campaigns.map(d => d['ICP']))].filter(Boolean);
   const icpData = icps.map(icp => {
     const rows = campaigns.filter(d => d['ICP'] === icp);
     const ls = rows.reduce((s, d) => s + num(d['List Size']), 0);
@@ -832,23 +809,22 @@ function renderCharts(campaigns, meetings) {
     data: {
       labels: icpData.map(d => d.icp),
       datasets: [
-        { label: 'Booking Rate %', data: icpData.map(d => d.rate), backgroundColor: '#34d399', borderRadius: 4, barThickness: 28 }
+        { label: 'Qualified Connects', data: icpData.map(d => d.ql), backgroundColor: '#34d399', borderRadius: 6, maxBarThickness: 40, yAxisID: 'y' },
+        { label: 'Booked', data: icpData.map(d => d.booked), backgroundColor: '#fbbf24', borderRadius: 6, maxBarThickness: 40, yAxisID: 'y' },
+        { label: 'Booking Rate %', data: icpData.map(d => d.rate), type: 'line', borderColor: '#f87171', backgroundColor: 'rgba(248,113,113,0.1)', pointBackgroundColor: '#f87171', pointRadius: 5, tension: 0.3, yAxisID: 'y1' }
       ]
     },
     options: {
       ...defaults,
-      indexAxis: 'y',
-      plugins: { ...defaults.plugins, legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ctx.parsed.x.toFixed(2) + '% (' + icpData[ctx.dataIndex].booked + ' booked / ' + icpData[ctx.dataIndex].ls.toLocaleString() + ' list)' } }
-      },
       scales: {
-        x: { ...defaults.scales.x, title: { display: true, text: 'Booking Rate %', color: '#8b8d97' } },
-        y: { ...defaults.scales.y, ticks: { color: '#e4e4e7', font: { size: 12 } }, grid: { display: false } }
+        x: { ...defaults.scales.x, ticks: { color: '#e4e4e7', font: { size: 12 } } },
+        y: { ...defaults.scales.y, position: 'left', title: { display: true, text: 'Count', color: '#8b8d97' } },
+        y1: { position: 'right', ticks: { color: '#f87171', font: { size: 11 }, callback: v => v.toFixed(1) + '%' }, grid: { display: false }, title: { display: true, text: 'Booking Rate', color: '#f87171' } }
       }
     }
   });
 
-  // Booking rate by GTM Motion — horizontal bars
+  // Booking rate by GTM Motion — vertical bars with dual metrics
   const motions = [...new Set(campaigns.map(d => d['GTM Motion']))];
   const motionData = motions.map(m => {
     const rows = campaigns.filter(d => d['GTM Motion'] === m);
@@ -858,28 +834,29 @@ function renderCharts(campaigns, meetings) {
     return { m, ls, booked, ql, rate: ls > 0 ? booked / ls * 100 : 0 };
   }).sort((a, b) => b.rate - a.rate);
 
+  const motionColors = motionData.map(d => {
+    if (d.m.includes('Sales.co')) return '#818cf8';
+    if (d.m.includes('SalesHive')) return '#34d399';
+    if (d.m.includes('Warm')) return '#fb923c';
+    return '#fbbf24';
+  });
+
   charts.motion = new Chart(document.getElementById('chart-motion'), {
     type: 'bar',
     data: {
       labels: motionData.map(d => d.m),
       datasets: [
-        { label: 'Booking Rate %', data: motionData.map(d => d.rate), backgroundColor: motionData.map(d => {
-          if (d.m.includes('Sales.co')) return '#818cf8';
-          if (d.m.includes('SalesHive')) return '#34d399';
-          if (d.m.includes('Warm')) return '#fb923c';
-          return '#fbbf24';
-        }), borderRadius: 4, barThickness: 28 }
+        { label: 'Qualified Connects', data: motionData.map(d => d.ql), backgroundColor: '#34d399', borderRadius: 6, maxBarThickness: 40, yAxisID: 'y' },
+        { label: 'Booked', data: motionData.map(d => d.booked), backgroundColor: '#fbbf24', borderRadius: 6, maxBarThickness: 40, yAxisID: 'y' },
+        { label: 'Booking Rate %', data: motionData.map(d => d.rate), type: 'line', borderColor: '#f87171', backgroundColor: 'rgba(248,113,113,0.1)', pointBackgroundColor: '#f87171', pointRadius: 5, tension: 0.3, yAxisID: 'y1' }
       ]
     },
     options: {
       ...defaults,
-      indexAxis: 'y',
-      plugins: { ...defaults.plugins, legend: { display: false },
-        tooltip: { callbacks: { label: ctx => motionData[ctx.dataIndex].rate.toFixed(2) + '% (' + motionData[ctx.dataIndex].booked + ' booked / ' + motionData[ctx.dataIndex].ls.toLocaleString() + ' list)' } }
-      },
       scales: {
-        x: { ...defaults.scales.x, title: { display: true, text: 'Booking Rate %', color: '#8b8d97' } },
-        y: { ...defaults.scales.y, ticks: { color: '#e4e4e7', font: { size: 12 } }, grid: { display: false } }
+        x: { ...defaults.scales.x, ticks: { color: '#e4e4e7', font: { size: 12 } } },
+        y: { ...defaults.scales.y, position: 'left', title: { display: true, text: 'Count', color: '#8b8d97' } },
+        y1: { position: 'right', ticks: { color: '#f87171', font: { size: 11 }, callback: v => v.toFixed(1) + '%' }, grid: { display: false }, title: { display: true, text: 'Booking Rate', color: '#f87171' } }
       }
     }
   });
