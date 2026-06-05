@@ -345,20 +345,35 @@ let charts = {};
 async function fetchSheet(sheetName) {
   const url = sheetName ? `${BASE_URL}&sheet=${encodeURIComponent(sheetName)}` : BASE_URL;
   const res = await fetch(url);
+  if (!res.ok) throw new Error(`Sheet "${sheetName}" returned ${res.status}`);
   const csv = await res.text();
   return parseCSV(csv);
 }
 
 async function loadData() {
   try {
-    const [campaigns, meetings, clients] = await Promise.all([
+    // Fetch all three sheets, but don't let one failure break everything
+    const results = await Promise.allSettled([
       fetchSheet('GTM Campaigns'),
       fetchSheet('Booked Meetings'),
       fetchSheet('Client Tracker')
     ]);
-    campaignData = campaigns;
-    meetingData = meetings;
-    clientData = clients;
+
+    campaignData = results[0].status === 'fulfilled' ? results[0].value : [];
+    meetingData = results[1].status === 'fulfilled' ? results[1].value : [];
+    clientData = results[2].status === 'fulfilled' ? results[2].value : [];
+
+    // If campaigns failed, try fetching without sheet name (first tab fallback)
+    if (campaignData.length === 0) {
+      try {
+        campaignData = await fetchSheet(null);
+      } catch(e2) {}
+    }
+
+    if (campaignData.length === 0 && meetingData.length === 0 && clientData.length === 0) {
+      throw new Error('All sheets returned empty');
+    }
+
     document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
     buildFilters();
     render();
@@ -367,6 +382,7 @@ async function loadData() {
       `<div class="loading" style="flex-direction:column;gap:12px;">
         <span style="font-size:16px;font-weight:600;">Unable to load data</span>
         <span>Unable to connect to the data source. Please try again later.</span>
+        <span style="font-size:11px;color:#555;">${e.message || ''}</span>
       </div>`;
   }
 }
