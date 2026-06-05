@@ -249,6 +249,7 @@
   .tag-salesco { background: rgba(99,102,241,0.15); color: var(--accent-light); }
   .tag-saleshive { background: rgba(52,211,153,0.15); color: var(--green); }
   .tag-internal { background: rgba(251,191,36,0.15); color: var(--amber); }
+  .tag-warm { background: rgba(251,146,60,0.15); color: #fb923c; }
 
   .outcome-tag {
     display: inline-block;
@@ -458,6 +459,7 @@ function money(str) {
 function motionTagClass(motion) {
   if (motion.includes('Sales.co')) return 'tag-salesco';
   if (motion.includes('SalesHive')) return 'tag-saleshive';
+  if (motion.includes('Warm')) return 'tag-warm';
   return 'tag-internal';
 }
 
