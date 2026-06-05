@@ -513,17 +513,23 @@ function render() {
     </div>
 
     <div class="charts-grid">
-      <div class="chart-card" style="grid-column: 1 / -1;">
-        <h3>Pipeline Funnel</h3>
-        <div class="chart-container" style="height:120px"><canvas id="chart-funnel"></canvas></div>
+      <div class="table-card">
+        <h3>Performance by ICP Vertical</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ICP</th><th>List Size</th><th>Qualified</th><th>Booked</th><th>Booking Rate</th></tr></thead>
+            <tbody id="table-icp"></tbody>
+          </table>
+        </div>
       </div>
-      <div class="chart-card">
-        <h3>Booking Rate by ICP Vertical</h3>
-        <div class="chart-container"><canvas id="chart-icp"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h3>Booking Rate by GTM Motion</h3>
-        <div class="chart-container"><canvas id="chart-motion"></canvas></div>
+      <div class="table-card">
+        <h3>Performance by GTM Motion</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>GTM Motion</th><th>List Size</th><th>Qualified</th><th>Booked</th><th>Booking Rate</th></tr></thead>
+            <tbody id="table-motion"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -728,7 +734,16 @@ function renderCharts(campaigns, meetings) {
   charts = {};
 
   const colors = ['#6366f1','#34d399','#fbbf24','#f87171','#a78bfa','#38bdf8','#fb923c'];
-  const defaults = {
+
+  const doughnutDefaults = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'right', labels: { color: '#8b8d97', font: { size: 12 }, padding: 16 } }
+    }
+  };
+
+  const barDefaults = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -740,61 +755,7 @@ function renderCharts(campaigns, meetings) {
     }
   };
 
-  const doughnutDefaults = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'right', labels: { color: '#8b8d97', font: { size: 12 }, padding: 16 } }
-    }
-  };
-
-  // Pipeline funnel — full-width horizontal bar with value labels
-  const totalList = campaigns.reduce((s, d) => s + num(d['List Size']), 0);
-  const totalQC = campaigns.reduce((s, d) => s + num(d['Qualified Connects']), 0);
-  const totalBooked = campaigns.reduce((s, d) => s + num(d['Booked']), 0);
-  const completedDemos = meetings.filter(d => d['Completed'] === 'Yes').length;
-  const closedWon = meetings.filter(d => d['Demo Outcome'] === 'Closed Won').length;
-
-  const funnelStages = [
-    { label: 'Contacted', value: totalList },
-    { label: 'Qualified', value: totalQC },
-    { label: 'Booked', value: totalBooked },
-    { label: 'Demo Completed', value: completedDemos },
-    { label: 'Closed Won', value: closedWon }
-  ];
-
-  charts.funnel = new Chart(document.getElementById('chart-funnel'), {
-    type: 'bar',
-    data: {
-      labels: [''],
-      datasets: funnelStages.map((s, i) => ({
-        label: s.label + ': ' + s.value.toLocaleString(),
-        data: [s.value],
-        backgroundColor: ['#6366f1','#818cf8','#34d399','#fbbf24','#22d3ee'][i],
-        borderRadius: 6,
-        barPercentage: 0.7
-      }))
-    },
-    options: {
-      ...defaults,
-      indexAxis: 'y',
-      plugins: {
-        legend: { position: 'top', labels: { color: '#e4e4e7', font: { size: 12 }, usePointStyle: true, pointStyle: 'rectRounded', padding: 20 } },
-        tooltip: { callbacks: { label: ctx => {
-          const idx = ctx.datasetIndex;
-          const val = funnelStages[idx].value;
-          const pctStr = idx > 0 ? ' (' + (funnelStages[0].value > 0 ? (val / funnelStages[0].value * 100).toFixed(2) : 0) + '% of contacted)' : '';
-          return funnelStages[idx].label + ': ' + val.toLocaleString() + pctStr;
-        }}}
-      },
-      scales: {
-        x: { display: false },
-        y: { display: false }
-      }
-    }
-  });
-
-  // Booking rate by ICP — vertical bars with dual metrics
+  // ICP summary table
   const icps = [...new Set(campaigns.map(d => d['ICP']))].filter(Boolean);
   const icpData = icps.map(icp => {
     const rows = campaigns.filter(d => d['ICP'] === icp);
@@ -804,27 +765,22 @@ function renderCharts(campaigns, meetings) {
     return { icp, ls, booked, ql, rate: ls > 0 ? booked / ls * 100 : 0 };
   }).sort((a, b) => b.rate - a.rate);
 
-  charts.icp = new Chart(document.getElementById('chart-icp'), {
-    type: 'bar',
-    data: {
-      labels: icpData.map(d => d.icp),
-      datasets: [
-        { label: 'Qualified Connects', data: icpData.map(d => d.ql), backgroundColor: '#34d399', borderRadius: 6, maxBarThickness: 40, yAxisID: 'y' },
-        { label: 'Booked', data: icpData.map(d => d.booked), backgroundColor: '#fbbf24', borderRadius: 6, maxBarThickness: 40, yAxisID: 'y' },
-        { label: 'Booking Rate %', data: icpData.map(d => d.rate), type: 'line', borderColor: '#f87171', backgroundColor: 'rgba(248,113,113,0.1)', pointBackgroundColor: '#f87171', pointRadius: 5, tension: 0.3, yAxisID: 'y1' }
-      ]
-    },
-    options: {
-      ...defaults,
-      scales: {
-        x: { ...defaults.scales.x, ticks: { color: '#e4e4e7', font: { size: 12 } } },
-        y: { ...defaults.scales.y, position: 'left', title: { display: true, text: 'Count', color: '#8b8d97' } },
-        y1: { position: 'right', ticks: { color: '#f87171', font: { size: 11 }, callback: v => v.toFixed(1) + '%' }, grid: { display: false }, title: { display: true, text: 'Booking Rate', color: '#f87171' } }
-      }
-    }
-  });
+  const icpTbody = document.getElementById('table-icp');
+  if (icpTbody) {
+    icpTbody.innerHTML = icpData.map(d => {
+      const maxRate = Math.max(...icpData.map(x => x.rate), 0.01);
+      const barW = (d.rate / maxRate * 80).toFixed(0);
+      return `<tr>
+        <td><strong>${d.icp}</strong></td>
+        <td>${d.ls.toLocaleString()}</td>
+        <td>${d.ql}</td>
+        <td><strong>${d.booked}</strong></td>
+        <td><div class="bar-cell"><div class="mini-bar" style="width:${barW}px"></div>${d.rate.toFixed(2)}%</div></td>
+      </tr>`;
+    }).join('');
+  }
 
-  // Booking rate by GTM Motion — vertical bars with dual metrics
+  // GTM Motion summary table
   const motions = [...new Set(campaigns.map(d => d['GTM Motion']))];
   const motionData = motions.map(m => {
     const rows = campaigns.filter(d => d['GTM Motion'] === m);
@@ -834,32 +790,21 @@ function renderCharts(campaigns, meetings) {
     return { m, ls, booked, ql, rate: ls > 0 ? booked / ls * 100 : 0 };
   }).sort((a, b) => b.rate - a.rate);
 
-  const motionColors = motionData.map(d => {
-    if (d.m.includes('Sales.co')) return '#818cf8';
-    if (d.m.includes('SalesHive')) return '#34d399';
-    if (d.m.includes('Warm')) return '#fb923c';
-    return '#fbbf24';
-  });
-
-  charts.motion = new Chart(document.getElementById('chart-motion'), {
-    type: 'bar',
-    data: {
-      labels: motionData.map(d => d.m),
-      datasets: [
-        { label: 'Qualified Connects', data: motionData.map(d => d.ql), backgroundColor: '#34d399', borderRadius: 6, maxBarThickness: 40, yAxisID: 'y' },
-        { label: 'Booked', data: motionData.map(d => d.booked), backgroundColor: '#fbbf24', borderRadius: 6, maxBarThickness: 40, yAxisID: 'y' },
-        { label: 'Booking Rate %', data: motionData.map(d => d.rate), type: 'line', borderColor: '#f87171', backgroundColor: 'rgba(248,113,113,0.1)', pointBackgroundColor: '#f87171', pointRadius: 5, tension: 0.3, yAxisID: 'y1' }
-      ]
-    },
-    options: {
-      ...defaults,
-      scales: {
-        x: { ...defaults.scales.x, ticks: { color: '#e4e4e7', font: { size: 12 } } },
-        y: { ...defaults.scales.y, position: 'left', title: { display: true, text: 'Count', color: '#8b8d97' } },
-        y1: { position: 'right', ticks: { color: '#f87171', font: { size: 11 }, callback: v => v.toFixed(1) + '%' }, grid: { display: false }, title: { display: true, text: 'Booking Rate', color: '#f87171' } }
-      }
-    }
-  });
+  const motionTbody = document.getElementById('table-motion');
+  if (motionTbody) {
+    motionTbody.innerHTML = motionData.map(d => {
+      const tagClass = motionTagClass(d.m);
+      const maxRate = Math.max(...motionData.map(x => x.rate), 0.01);
+      const barW = (d.rate / maxRate * 80).toFixed(0);
+      return `<tr>
+        <td><span class="tag ${tagClass}">${d.m}</span></td>
+        <td>${d.ls.toLocaleString()}</td>
+        <td>${d.ql}</td>
+        <td><strong>${d.booked}</strong></td>
+        <td><div class="bar-cell"><div class="mini-bar" style="width:${barW}px"></div>${d.rate.toFixed(2)}%</div></td>
+      </tr>`;
+    }).join('');
+  }
 
   // Demo outcomes doughnut
   const outcomeClosedWon = meetings.filter(d => d['Demo Outcome'] === 'Closed Won').length;
