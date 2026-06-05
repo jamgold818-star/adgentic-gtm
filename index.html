@@ -18,6 +18,7 @@
     --green: #34d399;
     --amber: #fbbf24;
     --red: #f87171;
+    --cyan: #22d3ee;
     --radius: 12px;
   }
 
@@ -112,9 +113,23 @@
     color: white;
   }
 
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    padding-top: 8px;
+    letter-spacing: -0.3px;
+  }
+
+  .section-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 8px 0 24px;
+  }
+
   .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
     gap: 16px;
     margin-bottom: 32px;
   }
@@ -142,6 +157,11 @@
     font-weight: 700;
     letter-spacing: -1px;
   }
+
+  .kpi-value.green { color: var(--green); }
+  .kpi-value.amber { color: var(--amber); }
+  .kpi-value.red { color: var(--red); }
+  .kpi-value.cyan { color: var(--cyan); }
 
   .kpi-sub {
     font-size: 12px;
@@ -230,6 +250,19 @@
   .tag-saleshive { background: rgba(52,211,153,0.15); color: var(--green); }
   .tag-internal { background: rgba(251,191,36,0.15); color: var(--amber); }
 
+  .outcome-tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .outcome-won { background: rgba(52,211,153,0.15); color: var(--green); }
+  .outcome-positive { background: rgba(99,102,241,0.15); color: var(--accent-light); }
+  .outcome-noshow { background: rgba(248,113,113,0.15); color: var(--red); }
+  .outcome-pending { background: rgba(139,141,151,0.15); color: var(--text-muted); }
+
   .bar-cell {
     display: flex;
     align-items: center;
@@ -292,26 +325,40 @@
 <div class="filters" id="filters"></div>
 
 <div id="content">
-  <div class="loading">Loading campaign data</div>
+  <div class="loading">Loading dashboard data</div>
 </div>
 
 <div class="footer">
-  Adgentic Sales Dashboard &middot; Data synced from Apollo.io
+  Adgentic GTM Dashboard &middot; Data synced from Apollo.io
 </div>
 
 <script>
 const SHEET_ID = '14NGi2PDaSkIJrnqNv40rV-nQtbGfJu8LNWp7be0N4r4';
-const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`;
+const BASE_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`;
 
-let allData = [];
+let campaignData = [];
+let meetingData = [];
+let clientData = [];
 let activeFilter = 'All';
 let charts = {};
 
+async function fetchSheet(sheetName) {
+  const url = sheetName ? `${BASE_URL}&sheet=${encodeURIComponent(sheetName)}` : BASE_URL;
+  const res = await fetch(url);
+  const csv = await res.text();
+  return parseCSV(csv);
+}
+
 async function loadData() {
   try {
-    const res = await fetch(CSV_URL);
-    const csv = await res.text();
-    allData = parseCSV(csv);
+    const [campaigns, meetings, clients] = await Promise.all([
+      fetchSheet('GTM Campaigns'),
+      fetchSheet('Booked Meetings'),
+      fetchSheet('Client Tracker')
+    ]);
+    campaignData = campaigns;
+    meetingData = meetings;
+    clientData = clients;
     document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
     buildFilters();
     render();
@@ -327,7 +374,7 @@ async function loadData() {
 function parseCSV(csv) {
   const lines = csv.trim().split('\n');
   const headers = parseLine(lines[0]);
-  return lines.slice(1).map(line => {
+  return lines.slice(1).filter(l => l.trim()).map(line => {
     const vals = parseLine(line);
     const obj = {};
     headers.forEach((h, i) => obj[h.trim()] = (vals[i] || '').trim());
@@ -356,7 +403,7 @@ function parseLine(line) {
 }
 
 function buildFilters() {
-  const motions = ['All', ...new Set(allData.map(d => d['GTM Motion']))];
+  const motions = ['All', ...new Set(campaignData.map(d => d['GTM Motion']))];
   const container = document.getElementById('filters');
   container.innerHTML = motions.map(m =>
     `<button class="filter-btn ${m === activeFilter ? 'active' : ''}" onclick="setFilter('${m}')">${m}</button>`
@@ -369,9 +416,14 @@ function setFilter(f) {
   render();
 }
 
-function filtered() {
-  if (activeFilter === 'All') return allData;
-  return allData.filter(d => d['GTM Motion'] === activeFilter);
+function filteredCampaigns() {
+  if (activeFilter === 'All') return campaignData;
+  return campaignData.filter(d => d['GTM Motion'] === activeFilter);
+}
+
+function filteredMeetings() {
+  if (activeFilter === 'All') return meetingData;
+  return meetingData.filter(d => d['GTM Source'] === activeFilter);
 }
 
 function num(str) {
@@ -383,19 +435,59 @@ function pct(str) {
   return isNaN(n) ? 0 : n;
 }
 
+function money(str) {
+  return parseInt(String(str).replace(/[^0-9]/g, ''), 10) || 0;
+}
+
+function motionTagClass(motion) {
+  if (motion.includes('Sales.co')) return 'tag-salesco';
+  if (motion.includes('SalesHive')) return 'tag-saleshive';
+  return 'tag-internal';
+}
+
+function outcomeTag(outcome) {
+  if (!outcome) return '<span class="outcome-tag outcome-pending">Pending</span>';
+  if (outcome === 'Closed Won') return '<span class="outcome-tag outcome-won">Closed Won</span>';
+  if (outcome === 'Positive') return '<span class="outcome-tag outcome-positive">Positive</span>';
+  if (outcome === 'No Show') return '<span class="outcome-tag outcome-noshow">No Show</span>';
+  return `<span class="outcome-tag outcome-pending">${outcome}</span>`;
+}
+
 function render() {
-  const data = filtered();
-  const totalList = data.reduce((s, d) => s + num(d['List Size']), 0);
-  const totalQL = data.reduce((s, d) => s + num(d['Qualified Connects']), 0);
-  const totalBooked = data.reduce((s, d) => s + num(d['Booked']), 0);
+  const campaigns = filteredCampaigns();
+  const meetings = filteredMeetings();
+
+  // Campaign KPIs
+  const totalList = campaigns.reduce((s, d) => s + num(d['List Size']), 0);
+  const totalQC = campaigns.reduce((s, d) => s + num(d['Qualified Connects']), 0);
+  const totalBooked = campaigns.reduce((s, d) => s + num(d['Booked']), 0);
   const avgBooking = totalList > 0 ? (totalBooked / totalList * 100) : 0;
-  const activeCampaigns = data.filter(d => !d['End Date']).length;
+  const activeCampaigns = campaigns.filter(d => !d['End Date']).length;
+
+  // Meeting KPIs
+  const totalDemos = meetings.length;
+  const completed = meetings.filter(d => d['Completed'] === 'Yes');
+  const closedWon = meetings.filter(d => d['Demo Outcome'] === 'Closed Won').length;
+  const positive = meetings.filter(d => d['Demo Outcome'] === 'Positive').length;
+  const noShows = meetings.filter(d => d['Demo Outcome'] === 'No Show').length;
+  const pending = meetings.filter(d => !d['Demo Outcome'] && d['Completed'] !== 'Yes').length;
+  const showRate = totalDemos > 0 ? (completed.length / totalDemos * 100) : 0;
+  const winRate = completed.length > 0 ? (closedWon / completed.length * 100) : 0;
+
+  // Revenue KPIs
+  const totalSpend = clientData.reduce((s, d) => s + money(d['Spend']), 0);
+  const uniqueClients = [...new Set(clientData.map(d => d['Advertiser']))].length;
+  const totalClientCampaigns = clientData.length;
 
   document.getElementById('content').innerHTML = `
+    <!-- ===== GTM CAMPAIGNS SECTION ===== -->
+    <div class="section-title">GTM Campaigns</div>
+    <hr class="section-divider">
+
     <div class="kpi-grid">
       <div class="kpi-card">
         <div class="kpi-label">Campaigns</div>
-        <div class="kpi-value">${data.length}</div>
+        <div class="kpi-value">${campaigns.length}</div>
         <div class="kpi-sub">${activeCampaigns} active</div>
       </div>
       <div class="kpi-card">
@@ -405,8 +497,8 @@ function render() {
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Qualified Connects</div>
-        <div class="kpi-value">${totalQL}</div>
-        <div class="kpi-sub">${totalList > 0 ? (totalQL/totalList*100).toFixed(2) : 0}% qualification rate</div>
+        <div class="kpi-value">${totalQC}</div>
+        <div class="kpi-sub">${totalList > 0 ? (totalQC/totalList*100).toFixed(2) : 0}% qualification rate</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Meetings Booked</div>
@@ -414,8 +506,8 @@ function render() {
         <div class="kpi-sub">${avgBooking.toFixed(2)}% booking rate</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Lead → Meeting</div>
-        <div class="kpi-value">${totalQL > 0 ? (totalBooked/totalQL*100).toFixed(0) : 0}%</div>
+        <div class="kpi-label">Lead to Meeting</div>
+        <div class="kpi-value">${totalQC > 0 ? (totalBooked/totalQC*100).toFixed(0) : 0}%</div>
         <div class="kpi-sub">conversion rate</div>
       </div>
     </div>
@@ -458,12 +550,11 @@ function render() {
             </tr>
           </thead>
           <tbody>
-            ${data.map(d => {
+            ${campaigns.map(d => {
               const motion = d['GTM Motion'] || '';
-              const tagClass = motion.includes('Sales.co') ? 'tag-salesco' :
-                               motion.includes('SalesHive') ? 'tag-saleshive' : 'tag-internal';
+              const tagClass = motionTagClass(motion);
               const bookingRate = pct(d['Booking Rate']);
-              const maxRate = Math.max(...allData.map(x => pct(x['Booking Rate'])), 0.01);
+              const maxRate = Math.max(...campaignData.map(x => pct(x['Booking Rate'])), 0.01);
               const barW = (bookingRate / maxRate * 100).toFixed(0);
               const status = d['End Date'] ? 'Ended' : 'Active';
               const statusColor = d['End Date'] ? 'var(--text-muted)' : 'var(--green)';
@@ -489,12 +580,154 @@ function render() {
         </table>
       </div>
     </div>
+
+    <!-- ===== BOOKED MEETINGS SECTION ===== -->
+    <div class="section-title">Booked Meetings</div>
+    <hr class="section-divider">
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Demos</div>
+        <div class="kpi-value">${totalDemos}</div>
+        <div class="kpi-sub">${completed.length} completed</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Closed Won</div>
+        <div class="kpi-value green">${closedWon}</div>
+        <div class="kpi-sub">${winRate.toFixed(0)}% win rate</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Positive</div>
+        <div class="kpi-value" style="color:var(--accent-light)">${positive}</div>
+        <div class="kpi-sub">active pipeline</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">No Shows</div>
+        <div class="kpi-value red">${noShows}</div>
+        <div class="kpi-sub">${totalDemos > 0 ? (noShows/totalDemos*100).toFixed(0) : 0}% no-show rate</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Pending</div>
+        <div class="kpi-value">${pending}</div>
+        <div class="kpi-sub">upcoming demos</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Show Rate</div>
+        <div class="kpi-value">${showRate.toFixed(0)}%</div>
+        <div class="kpi-sub">of scheduled demos</div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Demo Outcomes</h3>
+        <div class="chart-container"><canvas id="chart-outcomes"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Demos by Attribution Channel</h3>
+        <div class="chart-container"><canvas id="chart-attribution"></canvas></div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <h3>All Booked Meetings</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Contact</th>
+              <th>Company</th>
+              <th>Demo Date</th>
+              <th>Completed</th>
+              <th>Outcome</th>
+              <th>GTM Source</th>
+              <th>Attribution</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${meetings.map(d => {
+              const source = d['GTM Source'] || '';
+              const tagClass = motionTagClass(source);
+              return `<tr>
+                <td>${d['Contact'] || ''}</td>
+                <td><strong>${d['Company'] || ''}</strong></td>
+                <td>${d['Demo Date'] || ''}</td>
+                <td>${d['Completed'] === 'Yes' ? '<span style="color:var(--green)">Yes</span>' : '<span style="color:var(--text-muted)">No</span>'}</td>
+                <td>${outcomeTag(d['Demo Outcome'])}</td>
+                <td><span class="tag ${tagClass}">${source}</span></td>
+                <td>${d['Demo Attribution'] || ''}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== CLIENT TRACKER SECTION ===== -->
+    <div class="section-title">Client Tracker</div>
+    <hr class="section-divider">
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Active Clients</div>
+        <div class="kpi-value cyan">${uniqueClients}</div>
+        <div class="kpi-sub">unique advertisers</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Ad Campaigns</div>
+        <div class="kpi-value">${totalClientCampaigns}</div>
+        <div class="kpi-sub">total campaigns run</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total Revenue</div>
+        <div class="kpi-value green">$${totalSpend.toLocaleString()}</div>
+        <div class="kpi-sub">ad spend to date</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Avg Campaign Value</div>
+        <div class="kpi-value">$${totalClientCampaigns > 0 ? Math.round(totalSpend / totalClientCampaigns).toLocaleString() : 0}</div>
+        <div class="kpi-sub">per campaign</div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Revenue by Advertiser</h3>
+        <div class="chart-container"><canvas id="chart-revenue"></canvas></div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <h3>All Client Campaigns</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Advertiser</th>
+              <th>Campaign Start</th>
+              <th>Campaign End</th>
+              <th>Spend</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${clientData.map(d => {
+              return `<tr>
+                <td><strong>${d['Advertiser'] || ''}</strong></td>
+                <td>${d['Campaign Start'] || ''}</td>
+                <td>${d['Campaign End'] || ''}</td>
+                <td style="color:var(--green)">$${money(d['Spend']).toLocaleString()}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
   `;
 
-  renderCharts(data);
+  renderCharts(campaigns, meetings);
 }
 
-function renderCharts(data) {
+function renderCharts(campaigns, meetings) {
   Object.values(charts).forEach(c => c.destroy());
   charts = {};
 
@@ -511,15 +744,23 @@ function renderCharts(data) {
     }
   };
 
+  const doughnutDefaults = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'right', labels: { color: '#8b8d97', font: { size: 12 }, padding: 16 } }
+    }
+  };
+
   // Booking rate by campaign
   charts.booking = new Chart(document.getElementById('chart-booking'), {
     type: 'bar',
     data: {
-      labels: data.map(d => d['Campaign Name']),
+      labels: campaigns.map(d => d['Campaign Name']),
       datasets: [{
         label: 'Booking Rate %',
-        data: data.map(d => pct(d['Booking Rate'])),
-        backgroundColor: data.map((_, i) => colors[i % colors.length]),
+        data: campaigns.map(d => pct(d['Booking Rate'])),
+        backgroundColor: campaigns.map((_, i) => colors[i % colors.length]),
         borderRadius: 6,
         maxBarThickness: 50
       }]
@@ -539,11 +780,11 @@ function renderCharts(data) {
   charts.funnel = new Chart(document.getElementById('chart-funnel'), {
     type: 'bar',
     data: {
-      labels: data.map(d => d['Campaign Name']),
+      labels: campaigns.map(d => d['Campaign Name']),
       datasets: [
-        { label: 'List Size', data: data.map(d => num(d['List Size'])), backgroundColor: '#6366f1', borderRadius: 4, maxBarThickness: 40 },
-        { label: 'Qualified', data: data.map(d => num(d['Qualified Connects'])), backgroundColor: '#34d399', borderRadius: 4, maxBarThickness: 40 },
-        { label: 'Booked', data: data.map(d => num(d['Booked'])), backgroundColor: '#fbbf24', borderRadius: 4, maxBarThickness: 40 }
+        { label: 'List Size', data: campaigns.map(d => num(d['List Size'])), backgroundColor: '#6366f1', borderRadius: 4, maxBarThickness: 40 },
+        { label: 'Qualified', data: campaigns.map(d => num(d['Qualified Connects'])), backgroundColor: '#34d399', borderRadius: 4, maxBarThickness: 40 },
+        { label: 'Booked', data: campaigns.map(d => num(d['Booked'])), backgroundColor: '#fbbf24', borderRadius: 4, maxBarThickness: 40 }
       ]
     },
     options: {
@@ -556,13 +797,13 @@ function renderCharts(data) {
   });
 
   // By ICP
-  const icps = [...new Set(data.map(d => d['ICP']))];
+  const icps = [...new Set(campaigns.map(d => d['ICP']))];
   const icpData = icps.map(icp => {
-    const rows = data.filter(d => d['ICP'] === icp);
+    const rows = campaigns.filter(d => d['ICP'] === icp);
     const ls = rows.reduce((s, d) => s + num(d['List Size']), 0);
     const booked = rows.reduce((s, d) => s + num(d['Booked']), 0);
     const ql = rows.reduce((s, d) => s + num(d['Qualified Connects']), 0);
-    return { icp, ls, booked, ql, rate: ls > 0 ? booked / ls * 100 : 0 };
+    return { icp, ls, booked, ql };
   });
 
   charts.icp = new Chart(document.getElementById('chart-icp'), {
@@ -578,13 +819,13 @@ function renderCharts(data) {
   });
 
   // By GTM Motion
-  const motions = [...new Set(data.map(d => d['GTM Motion']))];
+  const motions = [...new Set(campaigns.map(d => d['GTM Motion']))];
   const motionData = motions.map(m => {
-    const rows = data.filter(d => d['GTM Motion'] === m);
+    const rows = campaigns.filter(d => d['GTM Motion'] === m);
     const ls = rows.reduce((s, d) => s + num(d['List Size']), 0);
     const booked = rows.reduce((s, d) => s + num(d['Booked']), 0);
     const ql = rows.reduce((s, d) => s + num(d['Qualified Connects']), 0);
-    return { m, ls, booked, ql, rate: ls > 0 ? booked / ls * 100 : 0 };
+    return { m, ls, booked, ql };
   });
 
   charts.motion = new Chart(document.getElementById('chart-motion'), {
@@ -598,6 +839,82 @@ function renderCharts(data) {
       ]
     },
     options: defaults
+  });
+
+  // Demo outcomes doughnut
+  const outcomeClosedWon = meetings.filter(d => d['Demo Outcome'] === 'Closed Won').length;
+  const outcomePositive = meetings.filter(d => d['Demo Outcome'] === 'Positive').length;
+  const outcomeNoShow = meetings.filter(d => d['Demo Outcome'] === 'No Show').length;
+  const outcomePending = meetings.filter(d => !d['Demo Outcome']).length;
+
+  charts.outcomes = new Chart(document.getElementById('chart-outcomes'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Closed Won', 'Positive', 'No Show', 'Pending'],
+      datasets: [{
+        data: [outcomeClosedWon, outcomePositive, outcomeNoShow, outcomePending],
+        backgroundColor: ['#34d399', '#818cf8', '#f87171', '#4b5563'],
+        borderWidth: 0,
+        spacing: 2
+      }]
+    },
+    options: doughnutDefaults
+  });
+
+  // Attribution channel bar
+  const channels = [...new Set(meetings.map(d => d['Demo Attribution']))].filter(Boolean);
+  const channelData = channels.map(ch => ({
+    ch,
+    count: meetings.filter(d => d['Demo Attribution'] === ch).length
+  })).sort((a, b) => b.count - a.count);
+
+  charts.attribution = new Chart(document.getElementById('chart-attribution'), {
+    type: 'bar',
+    data: {
+      labels: channelData.map(d => d.ch),
+      datasets: [{
+        label: 'Demos',
+        data: channelData.map(d => d.count),
+        backgroundColor: channelData.map((_, i) => colors[i % colors.length]),
+        borderRadius: 6,
+        maxBarThickness: 60
+      }]
+    },
+    options: {
+      ...defaults,
+      plugins: { ...defaults.plugins, legend: { display: false } },
+      indexAxis: 'y'
+    }
+  });
+
+  // Revenue by advertiser
+  const advertisers = [...new Set(clientData.map(d => d['Advertiser']))];
+  const revenueData = advertisers.map(a => ({
+    name: a,
+    total: clientData.filter(d => d['Advertiser'] === a).reduce((s, d) => s + money(d['Spend']), 0),
+    campaigns: clientData.filter(d => d['Advertiser'] === a).length
+  })).sort((a, b) => b.total - a.total);
+
+  charts.revenue = new Chart(document.getElementById('chart-revenue'), {
+    type: 'bar',
+    data: {
+      labels: revenueData.map(d => d.name),
+      datasets: [{
+        label: 'Total Spend',
+        data: revenueData.map(d => d.total),
+        backgroundColor: revenueData.map((_, i) => colors[i % colors.length]),
+        borderRadius: 6,
+        maxBarThickness: 60
+      }]
+    },
+    options: {
+      ...defaults,
+      plugins: { ...defaults.plugins, legend: { display: false } },
+      scales: {
+        ...defaults.scales,
+        y: { ...defaults.scales.y, ticks: { ...defaults.scales.y.ticks, callback: v => '$' + v.toLocaleString() } }
+      }
+    }
   });
 }
 
