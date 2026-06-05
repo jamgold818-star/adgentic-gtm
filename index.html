@@ -862,8 +862,8 @@ function renderCharts(campaigns, meetings) {
       }]
     },
     options: {
-      ...defaults,
-      plugins: { ...defaults.plugins, legend: { display: false } },
+      ...barDefaults,
+      plugins: { ...barDefaults.plugins, legend: { display: false } },
       indexAxis: 'y'
     }
   });
@@ -889,11 +889,11 @@ function renderCharts(campaigns, meetings) {
       }]
     },
     options: {
-      ...defaults,
-      plugins: { ...defaults.plugins, legend: { display: false } },
+      ...barDefaults,
+      plugins: { ...barDefaults.plugins, legend: { display: false } },
       scales: {
-        ...defaults.scales,
-        y: { ...defaults.scales.y, ticks: { ...defaults.scales.y.ticks, callback: v => '$' + v.toLocaleString() } }
+        ...barDefaults.scales,
+        y: { ...barDefaults.scales.y, ticks: { ...barDefaults.scales.y.ticks, callback: v => '$' + v.toLocaleString() } }
       }
     }
   });
