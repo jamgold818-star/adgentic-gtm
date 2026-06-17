@@ -576,15 +576,6 @@ function motionTagClass(motion) {
   return 'tag-internal';
 }
 
-function campaignBookingsByChannel(motion) {
-  const matched = meetingData.filter(d => d['GTM Source'] === motion);
-  return {
-    call: matched.filter(d => d['Demo Attribution'] === 'Cold Call').length,
-    email: matched.filter(d => d['Demo Attribution'] === 'Cold Email').length,
-    linkedin: matched.filter(d => d['Demo Attribution'] === 'LinkedIn').length
-  };
-}
-
 function outcomeTag(outcome) {
   if (!outcome) return '<span class="outcome-tag outcome-pending">Pending</span>';
   if (outcome === 'Closed Won') return '<span class="outcome-tag outcome-won">Closed Won</span>';
@@ -600,9 +591,10 @@ function render() {
 
   // Campaign KPIs
   const totalList = campaigns.reduce((s, d) => s + num(d['List Size']), 0);
-  const totalQC = campaigns.reduce((s, d) => s + num(d['Qualified Connects']), 0);
-  const totalBooked = campaigns.reduce((s, d) => s + num(d['Booked']), 0);
+  const totalBooked = campaigns.reduce((s, d) => s + num(d['Total Booked']), 0);
   const avgBooking = totalList > 0 ? (totalBooked / totalList * 100) : 0;
+  const totalColdCall = campaigns.reduce((s, d) => s + num(d['Booked via Cold Call']), 0);
+  const totalEmail = campaigns.reduce((s, d) => s + num(d['Booked via Email']), 0);
   const activeCampaigns = campaigns.filter(d => !d['End Date']).length;
 
   // Meeting KPIs
@@ -638,19 +630,19 @@ function render() {
         <div class="kpi-sub">contacts loaded</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Qualified Connects</div>
-        <div class="kpi-value">${totalQC}</div>
-        <div class="kpi-sub">${totalList > 0 ? (totalQC/totalList*100).toFixed(2) : 0}% qualification rate</div>
-      </div>
-      <div class="kpi-card">
         <div class="kpi-label">Meetings Booked</div>
         <div class="kpi-value">${totalBooked}</div>
         <div class="kpi-sub">${avgBooking.toFixed(2)}% booking rate</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Lead to Meeting</div>
-        <div class="kpi-value">${totalQC > 0 ? (totalBooked/totalQC*100).toFixed(0) : 0}%</div>
-        <div class="kpi-sub">conversion rate</div>
+        <div class="kpi-label">Booked via Cold Call</div>
+        <div class="kpi-value">${totalColdCall}</div>
+        <div class="kpi-sub">${totalBooked > 0 ? (totalColdCall/totalBooked*100).toFixed(0) : 0}% of bookings</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Booked via Email</div>
+        <div class="kpi-value">${totalEmail}</div>
+        <div class="kpi-sub">${totalBooked > 0 ? (totalEmail/totalBooked*100).toFixed(0) : 0}% of bookings</div>
       </div>
     </div>
 
@@ -659,7 +651,7 @@ function render() {
         <h3>Performance by ICP Vertical</h3>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>ICP</th><th>List Size</th><th>Qualified</th><th>Booked</th><th>Booking Rate</th></tr></thead>
+            <thead><tr><th>ICP</th><th>List Size</th><th>Booked</th><th>Cold Call</th><th>Email</th><th>Booking Rate</th></tr></thead>
             <tbody id="table-icp"></tbody>
           </table>
         </div>
@@ -668,7 +660,7 @@ function render() {
         <h3>Performance by GTM Motion</h3>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>GTM Motion</th><th>List Size</th><th>Qualified</th><th>Booked</th><th>Booking Rate</th></tr></thead>
+            <thead><tr><th>GTM Motion</th><th>List Size</th><th>Booked</th><th>Cold Call</th><th>Email</th><th>Booking Rate</th></tr></thead>
             <tbody id="table-motion"></tbody>
           </table>
         </div>
@@ -689,11 +681,9 @@ function render() {
               <th>Start</th>
               <th>Status</th>
               <th>List Size</th>
-              <th>Qualified</th>
-              <th>Booked</th>
+              <th>Total Booked</th>
               <th style="text-align:center">Cold Call</th>
               <th style="text-align:center">Email</th>
-              <th style="text-align:center">LinkedIn</th>
               <th>Booking Rate</th>
             </tr>
           </thead>
@@ -706,22 +696,18 @@ function render() {
               const barW = (bookingRate / maxRate * 100).toFixed(0);
               const status = d['End Date'] ? 'Ended' : 'Active';
               const statusColor = d['End Date'] ? 'var(--text-muted)' : 'var(--green)';
-              const icp = d['ICP'] || '';
-              const byCh = campaignBookingsByChannel(motion);
               return `<tr>
                 <td><span class="tag ${tagClass}">${motion}</span></td>
                 <td>${d['Campaign Name'] || ''}</td>
-                <td>${icp}</td>
+                <td>${d['ICP'] || ''}</td>
                 <td>${d['Master ICP'] || ''}</td>
                 <td>${d['Spear Tip'] || ''}</td>
                 <td>${d['Start Date'] || ''}</td>
                 <td style="color:${statusColor}">${status}</td>
                 <td>${num(d['List Size']).toLocaleString()}</td>
-                <td>${num(d['Qualified Connects'])}</td>
-                <td><strong>${num(d['Booked'])}</strong></td>
-                <td style="text-align:center">${byCh.call || '—'}</td>
-                <td style="text-align:center">${byCh.email || '—'}</td>
-                <td style="text-align:center">${byCh.linkedin || '—'}</td>
+                <td><strong>${num(d['Total Booked'])}</strong></td>
+                <td style="text-align:center">${num(d['Booked via Cold Call']) || '—'}</td>
+                <td style="text-align:center">${num(d['Booked via Email']) || '—'}</td>
                 <td>
                   <div class="bar-cell">
                     <div class="mini-bar" style="width:${barW}px"></div>
@@ -917,9 +903,10 @@ function renderCharts(campaigns, meetings) {
   const icpData = icps.map(icp => {
     const rows = campaigns.filter(d => d['ICP'] === icp);
     const ls = rows.reduce((s, d) => s + num(d['List Size']), 0);
-    const booked = rows.reduce((s, d) => s + num(d['Booked']), 0);
-    const ql = rows.reduce((s, d) => s + num(d['Qualified Connects']), 0);
-    return { icp, ls, booked, ql, rate: ls > 0 ? booked / ls * 100 : 0 };
+    const booked = rows.reduce((s, d) => s + num(d['Total Booked']), 0);
+    const cc = rows.reduce((s, d) => s + num(d['Booked via Cold Call']), 0);
+    const em = rows.reduce((s, d) => s + num(d['Booked via Email']), 0);
+    return { icp, ls, booked, cc, em, rate: ls > 0 ? booked / ls * 100 : 0 };
   }).sort((a, b) => b.rate - a.rate);
 
   const icpTbody = document.getElementById('table-icp');
@@ -930,8 +917,9 @@ function renderCharts(campaigns, meetings) {
       return `<tr>
         <td><strong>${d.icp}</strong></td>
         <td>${d.ls.toLocaleString()}</td>
-        <td>${d.ql}</td>
         <td><strong>${d.booked}</strong></td>
+        <td>${d.cc}</td>
+        <td>${d.em}</td>
         <td><div class="bar-cell"><div class="mini-bar" style="width:${barW}px"></div>${d.rate.toFixed(2)}%</div></td>
       </tr>`;
     }).join('');
@@ -942,9 +930,10 @@ function renderCharts(campaigns, meetings) {
   const motionData = motions.map(m => {
     const rows = campaigns.filter(d => d['GTM Motion'] === m);
     const ls = rows.reduce((s, d) => s + num(d['List Size']), 0);
-    const booked = rows.reduce((s, d) => s + num(d['Booked']), 0);
-    const ql = rows.reduce((s, d) => s + num(d['Qualified Connects']), 0);
-    return { m, ls, booked, ql, rate: ls > 0 ? booked / ls * 100 : 0 };
+    const booked = rows.reduce((s, d) => s + num(d['Total Booked']), 0);
+    const cc = rows.reduce((s, d) => s + num(d['Booked via Cold Call']), 0);
+    const em = rows.reduce((s, d) => s + num(d['Booked via Email']), 0);
+    return { m, ls, booked, cc, em, rate: ls > 0 ? booked / ls * 100 : 0 };
   }).sort((a, b) => b.rate - a.rate);
 
   const motionTbody = document.getElementById('table-motion');
@@ -956,8 +945,9 @@ function renderCharts(campaigns, meetings) {
       return `<tr>
         <td><span class="tag ${tagClass}">${d.m}</span></td>
         <td>${d.ls.toLocaleString()}</td>
-        <td>${d.ql}</td>
         <td><strong>${d.booked}</strong></td>
+        <td>${d.cc}</td>
+        <td>${d.em}</td>
         <td><div class="bar-cell"><div class="mini-bar" style="width:${barW}px"></div>${d.rate.toFixed(2)}%</div></td>
       </tr>`;
     }).join('');
