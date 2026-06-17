@@ -89,29 +89,97 @@
 
   .filters {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     margin-bottom: 24px;
     flex-wrap: wrap;
+    align-items: flex-start;
   }
 
-  .filter-btn {
+  .filter-group {
+    position: relative;
+  }
+
+  .filter-toggle {
     background: var(--surface);
     border: 1px solid var(--border);
     color: var(--text-muted);
-    padding: 7px 16px;
+    padding: 7px 28px 7px 12px;
     border-radius: 20px;
     cursor: pointer;
     font-size: 13px;
     transition: all 0.2s;
+    white-space: nowrap;
   }
 
-  .filter-btn:hover { background: var(--surface-hover); color: var(--text); }
+  .filter-toggle::after {
+    content: '\25BE';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+  }
 
-  .filter-btn.active {
+  .filter-toggle:hover { background: var(--surface-hover); color: var(--text); }
+
+  .filter-toggle.has-selection {
     background: var(--accent);
     border-color: var(--accent);
     color: white;
   }
+
+  .filter-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 0;
+    z-index: 100;
+    min-width: 180px;
+    max-height: 260px;
+    overflow-y: auto;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  .filter-dropdown.open { display: block; }
+
+  .filter-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+    transition: background 0.15s;
+  }
+
+  .filter-option:hover { background: var(--surface-hover); }
+
+  .filter-option input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+  }
+
+  .filter-clear {
+    background: none;
+    border: none;
+    color: var(--accent-light);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 4px 14px;
+    width: 100%;
+    text-align: left;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+
+  .filter-clear:hover { text-decoration: underline; }
 
   .section-title {
     font-size: 18px;
@@ -341,7 +409,7 @@ const BASE_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx
 let campaignData = [];
 let meetingData = [];
 let clientData = [];
-let activeFilter = 'All';
+let filters = { motion: [], masterIcp: [], spearTip: [], channel: [] };
 let charts = {};
 
 async function fetchSheet(sheetName) {
@@ -421,27 +489,71 @@ function parseLine(line) {
 }
 
 function buildFilters() {
-  const motions = ['All', ...new Set(campaignData.map(d => d['GTM Motion']))];
+  const defs = [
+    { key: 'motion', label: 'GTM Motion', values: [...new Set(campaignData.map(d => d['GTM Motion']).concat(meetingData.map(d => d['GTM Source'])))] },
+    { key: 'masterIcp', label: 'Master ICP', values: [...new Set(campaignData.map(d => d['Master ICP']))] },
+    { key: 'spearTip', label: 'Spear Tip', values: [...new Set(campaignData.map(d => d['Spear Tip']))] },
+    { key: 'channel', label: 'Last Touch', values: [...new Set(meetingData.map(d => d['Demo Attribution']))] }
+  ];
   const container = document.getElementById('filters');
-  container.innerHTML = motions.map(m =>
-    `<button class="filter-btn ${m === activeFilter ? 'active' : ''}" onclick="setFilter('${m}')">${m}</button>`
-  ).join('');
+  container.innerHTML = defs.map(def => {
+    const vals = def.values.filter(Boolean).sort();
+    const sel = filters[def.key];
+    const hasSelection = sel.length > 0;
+    const count = hasSelection ? ` (${sel.length})` : '';
+    return `<div class="filter-group">
+      <button class="filter-toggle ${hasSelection ? 'has-selection' : ''}" onclick="toggleDropdown('${def.key}')">${def.label}${count}</button>
+      <div class="filter-dropdown" id="dropdown-${def.key}">
+        ${vals.map(v => `<label class="filter-option">
+          <input type="checkbox" ${sel.includes(v) ? 'checked' : ''} onchange="toggleFilter('${def.key}', '${v.replace(/'/g, "\\'")}')"> ${v}
+        </label>`).join('')}
+        ${hasSelection ? `<button class="filter-clear" onclick="clearFilter('${def.key}')">Clear</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
 }
 
-function setFilter(f) {
-  activeFilter = f;
+function toggleDropdown(key) {
+  document.querySelectorAll('.filter-dropdown').forEach(d => {
+    if (d.id !== 'dropdown-' + key) d.classList.remove('open');
+  });
+  document.getElementById('dropdown-' + key).classList.toggle('open');
+}
+
+function toggleFilter(key, value) {
+  const idx = filters[key].indexOf(value);
+  if (idx >= 0) filters[key].splice(idx, 1);
+  else filters[key].push(value);
   buildFilters();
   render();
 }
 
+function clearFilter(key) {
+  filters[key] = [];
+  buildFilters();
+  render();
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.filter-group')) {
+    document.querySelectorAll('.filter-dropdown').forEach(d => d.classList.remove('open'));
+  }
+});
+
 function filteredCampaigns() {
-  if (activeFilter === 'All') return campaignData;
-  return campaignData.filter(d => d['GTM Motion'] === activeFilter);
+  return campaignData.filter(d => {
+    if (filters.motion.length && !filters.motion.includes(d['GTM Motion'])) return false;
+    if (filters.masterIcp.length && !filters.masterIcp.includes(d['Master ICP'])) return false;
+    if (filters.spearTip.length && !filters.spearTip.includes(d['Spear Tip'])) return false;
+    return true;
+  });
 }
 
 function filteredMeetings() {
-  if (activeFilter === 'All') return meetingData;
-  return meetingData.filter(d => d['GTM Source'] === activeFilter);
+  let result = meetingData;
+  if (filters.motion.length) result = result.filter(d => filters.motion.includes(d['GTM Source']));
+  if (filters.channel.length) result = result.filter(d => filters.channel.includes(d['Demo Attribution']));
+  return result;
 }
 
 function num(str) {
@@ -462,6 +574,15 @@ function motionTagClass(motion) {
   if (motion.includes('SalesHive')) return 'tag-saleshive';
   if (motion.includes('Warm')) return 'tag-warm';
   return 'tag-internal';
+}
+
+function campaignBookingsByChannel(motion) {
+  const matched = meetingData.filter(d => d['GTM Source'] === motion);
+  return {
+    call: matched.filter(d => d['Demo Attribution'] === 'Cold Call').length,
+    email: matched.filter(d => d['Demo Attribution'] === 'Cold Email').length,
+    linkedin: matched.filter(d => d['Demo Attribution'] === 'LinkedIn').length
+  };
 }
 
 function outcomeTag(outcome) {
@@ -563,12 +684,16 @@ function render() {
               <th>GTM Motion</th>
               <th>Campaign</th>
               <th>ICP</th>
-              <th>Channel(s)</th>
+              <th>Master ICP</th>
+              <th>Spear Tip</th>
               <th>Start</th>
               <th>Status</th>
               <th>List Size</th>
               <th>Qualified</th>
               <th>Booked</th>
+              <th style="text-align:center">Cold Call</th>
+              <th style="text-align:center">Email</th>
+              <th style="text-align:center">LinkedIn</th>
               <th>Booking Rate</th>
             </tr>
           </thead>
@@ -581,16 +706,22 @@ function render() {
               const barW = (bookingRate / maxRate * 100).toFixed(0);
               const status = d['End Date'] ? 'Ended' : 'Active';
               const statusColor = d['End Date'] ? 'var(--text-muted)' : 'var(--green)';
+              const icp = d['ICP'] || '';
+              const byCh = campaignBookingsByChannel(motion);
               return `<tr>
                 <td><span class="tag ${tagClass}">${motion}</span></td>
                 <td>${d['Campaign Name'] || ''}</td>
-                <td>${d['ICP'] || ''}</td>
-                <td>${d['Channel(s)'] || ''}</td>
+                <td>${icp}</td>
+                <td>${d['Master ICP'] || ''}</td>
+                <td>${d['Spear Tip'] || ''}</td>
                 <td>${d['Start Date'] || ''}</td>
                 <td style="color:${statusColor}">${status}</td>
                 <td>${num(d['List Size']).toLocaleString()}</td>
                 <td>${num(d['Qualified Connects'])}</td>
                 <td><strong>${num(d['Booked'])}</strong></td>
+                <td style="text-align:center">${byCh.call || '—'}</td>
+                <td style="text-align:center">${byCh.email || '—'}</td>
+                <td style="text-align:center">${byCh.linkedin || '—'}</td>
                 <td>
                   <div class="bar-cell">
                     <div class="mini-bar" style="width:${barW}px"></div>
