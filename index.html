@@ -261,6 +261,7 @@
 
   .outcome-won { background: rgba(52,211,153,0.15); color: var(--green); }
   .outcome-positive { background: rgba(99,102,241,0.15); color: var(--accent-light); }
+  .outcome-negative { background: rgba(251,146,60,0.15); color: #fb923c; }
   .outcome-noshow { background: rgba(248,113,113,0.15); color: var(--red); }
   .outcome-pending { background: rgba(139,141,151,0.15); color: var(--text-muted); }
 
@@ -466,7 +467,8 @@ function motionTagClass(motion) {
 function outcomeTag(outcome) {
   if (!outcome) return '<span class="outcome-tag outcome-pending">Pending</span>';
   if (outcome === 'Closed Won') return '<span class="outcome-tag outcome-won">Closed Won</span>';
-  if (outcome === 'Positive') return '<span class="outcome-tag outcome-positive">Positive</span>';
+  if (outcome.startsWith('Positive')) return `<span class="outcome-tag outcome-positive">${outcome}</span>`;
+  if (outcome.startsWith('Negative')) return `<span class="outcome-tag outcome-negative">${outcome}</span>`;
   if (outcome === 'No Show') return '<span class="outcome-tag outcome-noshow">No Show</span>';
   return `<span class="outcome-tag outcome-pending">${outcome}</span>`;
 }
@@ -486,7 +488,8 @@ function render() {
   const totalDemos = meetings.length;
   const completed = meetings.filter(d => d['Completed'] === 'Yes');
   const closedWon = meetings.filter(d => d['Demo Outcome'] === 'Closed Won').length;
-  const positive = meetings.filter(d => d['Demo Outcome'] === 'Positive').length;
+  const positive = meetings.filter(d => (d['Demo Outcome'] || '').startsWith('Positive')).length;
+  const negative = meetings.filter(d => (d['Demo Outcome'] || '').startsWith('Negative')).length;
   const noShows = meetings.filter(d => d['Demo Outcome'] === 'No Show').length;
   const pending = meetings.filter(d => !d['Demo Outcome'] && d['Completed'] !== 'Yes').length;
   const showRate = totalDemos > 0 ? (completed.length / totalDemos * 100) : 0;
@@ -620,6 +623,11 @@ function render() {
         <div class="kpi-label">Positive</div>
         <div class="kpi-value" style="color:var(--accent-light)">${positive}</div>
         <div class="kpi-sub">active pipeline</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Negative</div>
+        <div class="kpi-value" style="color:#fb923c">${negative}</div>
+        <div class="kpi-sub">closed lost</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">No Shows</div>
@@ -826,17 +834,18 @@ function renderCharts(campaigns, meetings) {
 
   // Demo outcomes doughnut
   const outcomeClosedWon = meetings.filter(d => d['Demo Outcome'] === 'Closed Won').length;
-  const outcomePositive = meetings.filter(d => d['Demo Outcome'] === 'Positive').length;
+  const outcomePositive = meetings.filter(d => (d['Demo Outcome'] || '').startsWith('Positive')).length;
+  const outcomeNegative = meetings.filter(d => (d['Demo Outcome'] || '').startsWith('Negative')).length;
   const outcomeNoShow = meetings.filter(d => d['Demo Outcome'] === 'No Show').length;
   const outcomePending = meetings.filter(d => !d['Demo Outcome']).length;
 
   charts.outcomes = new Chart(document.getElementById('chart-outcomes'), {
     type: 'doughnut',
     data: {
-      labels: ['Closed Won', 'Positive', 'No Show', 'Pending'],
+      labels: ['Closed Won', 'Positive', 'Negative', 'No Show', 'Pending'],
       datasets: [{
-        data: [outcomeClosedWon, outcomePositive, outcomeNoShow, outcomePending],
-        backgroundColor: ['#34d399', '#818cf8', '#f87171', '#4b5563'],
+        data: [outcomeClosedWon, outcomePositive, outcomeNegative, outcomeNoShow, outcomePending],
+        backgroundColor: ['#34d399', '#818cf8', '#fb923c', '#f87171', '#4b5563'],
         borderWidth: 0,
         spacing: 2
       }]
